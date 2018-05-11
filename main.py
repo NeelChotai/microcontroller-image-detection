@@ -26,7 +26,6 @@ def imageDetection(file):
     pixels = numpy.array(image).reshape(-1, 3)
         
     for i in range(0, len(pixels) - 1):
-            
         if(pixels[i, 0] < 20 and pixels[i, 1] > pixels[i, 0] and pixels[i, 1] > pixels[i, 2]): #g > r, g > b, r < 150 #10, 40, 50
             dt = datetime.now()
             log("Image", dt)
@@ -63,7 +62,7 @@ def microphoneDetection():
 
         if comparisonValue > THRESHOLD:
             log("Microphone", datetime.now())
-            break
+        break
 
 def LEDControl(control):
     if (control == 0):
