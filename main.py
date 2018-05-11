@@ -3,20 +3,25 @@ import tkinter
 import argparse
 import os
 import numpy
-import constants
+from constants import *
+import smbus
 from PIL import Image, ImageFilter, ImageDraw
 
 def captureImage():
     while True:
         #LEDControl(1)
-        os.system("fswebcam -r " + constants.RESOLUTION + " -S 4 --no-banner image.jpg") #capture
+        os.system("fswebcam -r " + RESOLUTION + " -S 4 --no-banner image.jpg") #capture
         #LEDControl(0)
         imageDetection("image.jpg")
         os.remove("image.jpg") #cleanup
+        
+def captureMicrophone():
+    while True:
+        #LEDControl(1)
+        microphoneDetection()
+        #LEDControl(0)
     
 def imageDetection(file):
-    
-    detected = False
     
     image = Image.open(file)
     pixels = numpy.array(image).reshape(-1, 3)
@@ -24,21 +29,18 @@ def imageDetection(file):
     for i in range(0, len(pixels) - 1):
             
         if(pixels[i, 0] < 20 and pixels[i, 1] > pixels[i, 0] and pixels[i, 1] > pixels[i, 2]): #g > r, g > b, r < 150 #10, 40, 50
-            detected = True
+            dt = datetime.now()
+            log("Image", dt)
+            draw(file, dt)
             break
         i += 1
-            
-    if (detected):
-        dt = datetime.now()
-        log("Image", dt)
-        draw(file, dt)
     
 def draw(file, now):
     image = Image.open(file)
     dimX = []
     dimY = []
-    for x in range(0, constants.WIDTH):
-        for y in range (0, constants.HEIGHT):
+    for x in range(0, WIDTH):
+        for y in range (0, HEIGHT):
             r, g, b = image.getpixel((x, y))
             if(r  < 20 and g > r and g > b):#if(r < 20 and g < 40 and b < 50):
                 dimX.append(x)
@@ -50,11 +52,19 @@ def draw(file, now):
     
 
 def microphoneDetection():
-    detected = False
-    #listen
-    #on input, check threshold
-    if(detected):
+    bus = smbus.SMBus(1)
+    while True:
+        bus.write_byte(I2CADDRESS, 0x20)
+
+    tmp = bus.read_word_data(I2CADDRESS, 0x00)
+    firstHalf = tmp >> 8
+    secondHalf = tmp << 8
+    switched = firstHalf | secondHalf
+    comparisonValue = switched & 0x0FFF
+
+    if comparisonValue > THRESHOLD:
         log("Microphone", datetime.now())
+        break
 
 def LEDControl(control):
     if (control == 0):
@@ -85,7 +95,7 @@ def GUI():
         
     
 def log(type, now):
-    print(type + ": Cockroach detected - " + now.strftime("%H:%M:%S %d/%m/%y"))
+    print(type + ": Bug detected - " + now.strftime("%H:%M:%S %d/%m/%y"))
     with open("log.csv", "a") as log:
         log.write(type + "," + now.strftime("%d/%m/%y") + "," + now.strftime("%H:%M:%S\n"))
     
