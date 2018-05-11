@@ -16,10 +16,9 @@ def captureImage():
         os.remove("image.jpg") #cleanup
         
 def captureMicrophone():
-    while True:
-        #LEDControl(1)
-        microphoneDetection()
-        #LEDControl(0)
+    #LEDControl(1)
+    microphoneDetection() #change GUI state
+    #LEDControl(0)
     
 def imageDetection(file):
     
@@ -37,10 +36,11 @@ def imageDetection(file):
     
 def draw(file, now):
     image = Image.open(file)
+    width, height = image.size
     dimX = []
     dimY = []
-    for x in range(0, WIDTH):
-        for y in range (0, HEIGHT):
+    for x in range(0, width):
+        for y in range (0, height):
             r, g, b = image.getpixel((x, y))
             if(r  < 20 and g > r and g > b):#if(r < 20 and g < 40 and b < 50):
                 dimX.append(x)
@@ -55,16 +55,15 @@ def microphoneDetection():
     bus = smbus.SMBus(1)
     while True:
         bus.write_byte(I2CADDRESS, 0x20)
+        tmp = bus.read_word_data(I2CADDRESS, 0x00)
+        firstHalf = tmp >> 8
+        secondHalf = tmp << 8
+        switched = firstHalf | secondHalf
+        comparisonValue = switched & 0x0FFF
 
-    tmp = bus.read_word_data(I2CADDRESS, 0x00)
-    firstHalf = tmp >> 8
-    secondHalf = tmp << 8
-    switched = firstHalf | secondHalf
-    comparisonValue = switched & 0x0FFF
-
-    if comparisonValue > THRESHOLD:
-        log("Microphone", datetime.now())
-        break
+        if comparisonValue > THRESHOLD:
+            log("Microphone", datetime.now())
+            break
 
 def LEDControl(control):
     if (control == 0):
