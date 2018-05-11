@@ -37,8 +37,8 @@ def draw(file, now):
     image = Image.open(file)
     dimX = []
     dimY = []
-    for x in range(0, image.width):
-        for y in range (0, image.height):
+    for x in range(0, constants.WIDTH):
+        for y in range (0, constants.HEIGHT):
             r, g, b = image.getpixel((x, y))
             if(r  < 20 and g > r and g > b):#if(r < 20 and g < 40 and b < 50):
                 dimX.append(x)
