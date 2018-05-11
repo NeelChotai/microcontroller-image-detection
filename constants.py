@@ -1,0 +1,1 @@
+RESOLUTION = "128x128"

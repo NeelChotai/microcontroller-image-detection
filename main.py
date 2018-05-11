@@ -3,12 +3,13 @@ import tkinter
 import argparse
 import os
 import numpy
+import constants
 from PIL import Image, ImageFilter, ImageDraw
 
 def captureImage():
     while True:
         #LEDControl(1)
-        os.system("fswebcam -r 128x128 -S 4 --no-banner image.jpg") #capture
+        os.system("fswebcam -r " + constants.RESOLUTION + " -S 4 --no-banner image.jpg") #capture
         #LEDControl(0)
         imageDetection("image.jpg")
         os.remove("image.jpg") #cleanup
