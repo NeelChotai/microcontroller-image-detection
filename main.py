@@ -4,8 +4,12 @@ import argparse
 import os
 import numpy
 from constants import *
-import smbus
-from PIL import Image, ImageFilter, ImageDraw
+#import smbus
+from PIL import Image, ImageDraw
+
+IMAGE_DETECTIONS = 0
+MICROPHONE_DETECTIONS = 0
+TOTAL_DETECTIONS = IMAGE_DETECTIONS + MICROPHONE_DETECTIONS
 
 def captureImage():
     while True:
@@ -21,15 +25,17 @@ def captureMicrophone():
     #LEDControl(0)
     
 def imageDetection(file):
-    
+
     image = Image.open(file)
     pixels = numpy.array(image).reshape(-1, 3)
         
     for i in range(0, len(pixels) - 1):
-        if(pixels[i, 0] < 20 and pixels[i, 1] > pixels[i, 0] and pixels[i, 1] > pixels[i, 2]): #g > r, g > b, r < 150 #10, 40, 50
+        if pixels[i, 0] < 140 and pixels[i, 1] > pixels[i, 0] and pixels[i, 1] > pixels[i, 2]: #g > r, g > b, r < 150 #10, 40, 50
             dt = datetime.now()
             log("Image", dt)
             draw(file, dt)
+            global IMAGE_DETECTIONS
+            IMAGE_DETECTIONS += 1
             break
         i += 1
     
@@ -39,43 +45,43 @@ def draw(file, now):
     dimX = []
     dimY = []
     for x in range(0, width):
-        for y in range (0, height):
+        for y in range(0, height):
             r, g, b = image.getpixel((x, y))
-            if(r  < 20 and g > r and g > b):#if(r < 20 and g < 40 and b < 50):
+            if r  < 140 and g > r and g > b:#if(r < 20 and g < 40 and b < 50):
                 dimX.append(x)
                 dimY.append(y)
             y += 1
         x += 1
     ImageDraw.Draw(image).rectangle([min(dimX), min(dimY), max(dimX), max(dimY)], outline="red")
     image.save(now.strftime("%H-%M-%S_%d.%m.%Y") + ".ppm")
-    
 
 def microphoneDetection():
     bus = smbus.SMBus(1)
     while True:
         bus.write_byte(I2CADDRESS, 0x20)
-        tmp = bus.read_word_data(I2CADDRESS, 0x00)
-        firstHalf = tmp >> 8
-        secondHalf = tmp << 8
+        temp = bus.read_word_data(I2CADDRESS, 0x00)
+        firstHalf = temp >> 8
+        secondHalf = temp << 8
         switched = firstHalf | secondHalf
         comparisonValue = switched & 0x0FFF
 
         if comparisonValue > THRESHOLD:
             log("Microphone", datetime.now())
-        break
+            global MICROPHONE_DETECTIONS
+            MICROPHONE_DETECTIONS += 1
+            break
 
 def LEDControl(control):
-    if (control == 0):
+    if control == 0:
         #OFF
         #Red LED
-        return;
-    elif (control == 1):
+        return
+    elif control == 1:
         #ON
         #Yellow LED
-        return;
+        return
     else:
         raise Exception("Out of range.")
-    
 
 def GUI():
     root = tkinter.Tk(className="Cockroach ID")
@@ -90,7 +96,6 @@ def GUI():
 
 #def togglePWM():
 #def toggleServo():
-        
     
 def log(type, now):
     print(type + ": Bug detected - " + now.strftime("%H:%M:%S %d/%m/%y"))
@@ -99,11 +104,10 @@ def log(type, now):
     
 #def imageProcessing():
 
-#unnecessary for the moment    
-#detector = argparse.ArgumentParser(description="Cockroach detection")
-#detector.add_argument() #one image
-
-#detector.add_argument() #repeatedly take images
-
+detector = argparse.ArgumentParser(description="Cockroach detection")
+detector.add_argument() #one image
+detector.add_argument() #repeatedly take images
+detector.add_argument() #microphone
+detector.add_argument() #gui
 
 imageDetection("./images/image3.jpg")
