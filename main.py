@@ -4,14 +4,13 @@ import argparse
 import os
 import numpy
 import time
-#import smbus #UNCOMMENT AFTER TESTING
-#import RPi.GPIO as GPIO #UNCOMMENT AFTER TESTING
+import smbus
+import RPi.GPIO as GPIO
 from constants import *
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
 
 IMAGE_DETECTIONS = 0
 MICROPHONE_DETECTIONS = 0
-TOTAL_DETECTIONS = IMAGE_DETECTIONS + MICROPHONE_DETECTIONS
 CAMERA_STATUS = "Inactive"
 MICROPHONE_STATUS = "Inactive"
 PWM_STATE = "Manual"
@@ -28,22 +27,31 @@ def captureImage(repeat):
             log("Image", DATE_TIME)
 
 def yetAnotherImageModule():
-    #LEDControl(1)
     global CAMERA_STATUS
-    CAMERA_STATUS = "Active"
-    os.system("fswebcam -r " + RESOLUTION + " -S 4 --no-banner image.jpg")
-    #LEDControl(0)
+    if LED_ACTIVE: #built in failsafe due to LEDs being temperamental
+        LEDControl(1)
+        CAMERA_STATUS = "Active"
+        os.system("fswebcam -r " + RESOLUTION + " -S 4 --no-banner image.jpg")
+        LEDControl(0)
+    else:
+        CAMERA_STATUS = "Active"
+        os.system("fswebcam -r " + RESOLUTION + " -S 4 --no-banner image.jpg")
     CAMERA_STATUS = "Inactive"
     imageDetection("image.jpg")
     os.remove("image.jpg")
 
 def captureMicrophone():
-    LEDControl(1)
     global MICROPHONE_STATUS
-    MICROPHONE_STATUS = "Active"
-    microphoneDetection()
-    MICROPHONE_STATUS = "Inactive"
-    LEDControl(0)
+    if (LED_ACTIVE):
+        LEDControl(1)
+        MICROPHONE_STATUS = "Active"
+        microphoneDetection()
+        MICROPHONE_STATUS = "Inactive"
+        LEDControl(0)
+    else:
+        MICROPHONE_STATUS = "Active"
+        microphoneDetection()
+        MICROPHONE_STATUS = "Inactive"
     
 def imageDetection(file):
     image = Image.open(file)
@@ -140,13 +148,11 @@ def GUI():
     microphoneStatus = tkinter.Label(root, text="Microphone: " + MICROPHONE_STATUS).pack()
     microphoneDetections = tkinter.Label(root, text="Microphone Detections: " + str(MICROPHONE_DETECTIONS)).pack()
     systemState = tkinter.Label(root, text="System State: " + PWM_STATE).pack()
-    PWM = tkinter.Button(root, text="Toggle PWM").pack()
-    snap = tkinter.Button(root, text="Snap", action = captureImage(False)).pack()
+    PWM = tkinter.Button(root, text="Toggle PWM", action=togglePWM).pack()
+    snap = tkinter.Button(root, text="Snap", action=captureImage(False)).pack()
 
-    photo = tkinter.PhotoImage(file = DATE_TIME.strftime("%H-%M-%S_%d.%m.%Y") + ".ppm")
-    cv = tkinter.Canvas()
-    cv.pack(side='bottom', fill='both', expand='no')
-    cv.create_image(10, 10, image=photo, anchor='nw')
+    photo = ImageTk.PhotoImage(Image.open(DATE_TIME.strftime("%H-%M-%S_%d.%m.%Y") + ".ppm"))
+    panel = tkinter.Label(root, image = photo).pack(side="bottom", fill="both", expand="yes")
 
     root.mainloop()
 
@@ -158,15 +164,16 @@ def togglePWM():
     p = GPIO.PWM(10, 50)
     p.start(7.5)
 
-    while True:
-        p.ChangeDutyCycle(7.5)
-        time.sleep(1)
-        p.ChangeDutyCycle(12.5)
-        time.sleep(1)
-        p.ChangeDutyCycle(2.5)
-        time.sleep(1)
-
-    GPIO.cleanup
+    try:
+        while True:
+            p.ChangeDutyCycle(7.5)
+            time.sleep(1)
+            p.ChangeDutyCycle(12.5)
+            time.sleep(1)
+            p.ChangeDutyCycle(2.5)
+            time.sleep(1)
+    except KeyboardInterrupt:
+        GPIO.cleanup
 
 def log(type, now):
     with open("log.csv", "a") as log:
@@ -178,6 +185,7 @@ detector.add_argument("--repeat", help="Repeated image detection.", action="stor
 detector.add_argument("--microphone",help="Microphone detection.", action="store_true")
 detector.add_argument("--monitor", help="Monitor volume", action="store_true")
 detector.add_argument("--gui", help="GUI", action="store_true")
+detector.add_argument("--toggle", help="Toggle PWM", action="store_true")
 args = detector.parse_args()
 
 if args.image:
@@ -190,3 +198,5 @@ elif args.monitor:
     monitorLevels()
 elif args.gui:
     GUI()
+elif args.toggle:
+    togglePWM()
