@@ -3,6 +3,7 @@ import tkinter
 import argparse
 import os
 import numpy
+import time
 #import smbus #UNCOMMENT AFTER TESTING
 #import RPi.GPIO as GPIO #UNCOMMENT AFTER TESTING
 from constants import *
@@ -11,6 +12,9 @@ from PIL import Image, ImageDraw
 IMAGE_DETECTIONS = 0
 MICROPHONE_DETECTIONS = 0
 TOTAL_DETECTIONS = IMAGE_DETECTIONS + MICROPHONE_DETECTIONS
+CAMERA_STATUS = "Inactive"
+MICROPHONE_STATUS = "Inactive"
+PWM_STATE = "Manual"
 DATE_TIME = None
 
 def captureImage(repeat):
@@ -22,19 +26,23 @@ def captureImage(repeat):
                 yetAnotherImageModule()
         except KeyboardInterrupt:
             log("Image", DATE_TIME)
+
 def yetAnotherImageModule():
-    LEDControl(1)
+    #LEDControl(1)
+    global CAMERA_STATUS
+    CAMERA_STATUS = "Active"
     os.system("fswebcam -r " + RESOLUTION + " -S 4 --no-banner image.jpg")
-    LEDControl(0)
-    imageDetection("./images/image.jpg") #CHANGE
-    try:
-        os.remove("image.jpg")
-    except FileNotFoundError:
-        print("Fuck.")
+    #LEDControl(0)
+    CAMERA_STATUS = "Inactive"
+    imageDetection("image.jpg")
+    os.remove("image.jpg")
 
 def captureMicrophone():
     LEDControl(1)
+    global MICROPHONE_STATUS
+    MICROPHONE_STATUS = "Active"
     microphoneDetection()
+    MICROPHONE_STATUS = "Inactive"
     LEDControl(0)
     
 def imageDetection(file):
@@ -81,18 +89,19 @@ def microphoneDetection():
             second = temp << 8
 
             switch = first | second
-            comparisonValue = switch & 0x0FFF
+            comparison = switch & 0x0FFF
 
-            if comparisonValue > THRESHOLD:
+            if comparison > THRESHOLD:
                 global DATE_TIME
                 DATE_TIME = datetime.now()
+
                 print("Microphone: Bug detected - " + DATE_TIME.strftime("%H:%M:%S %d/%m/%y"))
 
                 global MICROPHONE_DETECTIONS
                 MICROPHONE_DETECTIONS += 1
                 break
     except KeyboardInterrupt:
-        log("Microphone", dt)
+        log("Microphone", DATE_TIME)
 
 def monitorLevels():
     for value in SOUND_CONTROL:
@@ -116,41 +125,52 @@ def monitorLevels():
                 GPIO.output(SOUND_CONTROL, False)
 
 def LEDControl(control):
+    LED_ON = 0x00
+    LED_OFF = 0xFF
+    bus = smbus.SMBus(1)
     if control == 0:
-        #OFF
-        #Red LED
-        return
+        bus.write_byte(I2C_YELLOW_LED, LED_OFF)
     elif control == 1:
-        #ON
-        #Yellow LED
-        return
+        bus.write_byte(I2C_YELLOW_LED, LED_ON)
 
 def GUI():
     root = tkinter.Tk(className="Bug ID")
-    cameraStatus = tkinter.Label(root, text="Camera: ").pack()
+    cameraStatus = tkinter.Label(root, text="Camera: " + CAMERA_STATUS).pack()
     cameraDetections = tkinter.Label(root, text="Camera Detections: " + str(IMAGE_DETECTIONS)).pack()
-    microphoneStatus = tkinter.Label(root, text="Microphone: ").pack()
+    microphoneStatus = tkinter.Label(root, text="Microphone: " + MICROPHONE_STATUS).pack()
     microphoneDetections = tkinter.Label(root, text="Microphone Detections: " + str(MICROPHONE_DETECTIONS)).pack()
-    systemState = tkinter.Label(root, text="System State: ").pack()
+    systemState = tkinter.Label(root, text="System State: " + PWM_STATE).pack()
     PWM = tkinter.Button(root, text="Toggle PWM").pack()
-    servo = tkinter.Button(root, text="Toggle Servo Motor Supply").pack()
-    snap = tkinter.Button(root, text="Snap", action = captureImage(False))
+    snap = tkinter.Button(root, text="Snap", action = captureImage(False)).pack()
 
-    photo = tkinter.PhotoImage(file="image.ppm")
+    photo = tkinter.PhotoImage(file = DATE_TIME.strftime("%H-%M-%S_%d.%m.%Y") + ".ppm")
     cv = tkinter.Canvas()
-    cv.pack(side='bottom', fill='both', expand='yes')
+    cv.pack(side='bottom', fill='both', expand='no')
     cv.create_image(10, 10, image=photo, anchor='nw')
 
     root.mainloop()
 
-#def togglePWM():
-#def toggleServo():
-    
+def togglePWM():
+    global PWM_STATE
+    PWM_STATE = "Automatic"
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(10, GPIO.OUT)
+    p = GPIO.PWM(10, 50)
+    p.start(7.5)
+
+    while True:
+        p.ChangeDutyCycle(7.5)
+        time.sleep(1)
+        p.ChangeDutyCycle(12.5)
+        time.sleep(1)
+        p.ChangeDutyCycle(2.5)
+        time.sleep(1)
+
+    GPIO.cleanup
+
 def log(type, now):
     with open("log.csv", "a") as log:
         log.write(type + "," + now.strftime("%d/%m/%y") + "," + now.strftime("%H:%M:%S\n"))
-    
-#def imageProcessing():
 
 detector = argparse.ArgumentParser(description="Cockroach detection")
 detector.add_argument("--image", help="Single image detection.", action="store_true")
